@@ -59,64 +59,18 @@ def generate_handwritten_text(draw, text, position, font_size=80):
     draw.text((x, y), text, fill=(0, 0, 139), font=font)
 
 
-def clear_region(image, position):
-    """
-    Clear a region by sampling and filling with the surrounding background color.
-    
-    Args:
-        image: PIL Image object
-        position: Tuple of (x1, y1, x2, y2) coordinates
-    """
-    x1, y1, x2, y2 = position
-    
-    # Sample background colors from multiple points around the region perimeter
-    sample_points = []
-    
-    # Sample from outside the box on all four sides
-    offset = 10
-    # Top edge samples
-    for i in range(5):
-        x = x1 + (x2 - x1) * i // 4
-        sample_points.append((x, y1 - offset))
-    # Bottom edge samples
-    for i in range(5):
-        x = x1 + (x2 - x1) * i // 4
-        sample_points.append((x, y2 + offset))
-    # Left edge samples
-    for i in range(3):
-        y = y1 + (y2 - y1) * i // 2
-        sample_points.append((x1 - offset, y))
-    # Right edge samples
-    for i in range(3):
-        y = y1 + (y2 - y1) * i // 2
-        sample_points.append((x2 + offset, y))
-    
-    # Collect valid samples
-    colors = []
-    for x, y in sample_points:
-        if 0 <= x < image.width and 0 <= y < image.height:
-            try:
-                colors.append(image.getpixel((x, y)))
-            except:
-                pass
-    
-    # Calculate average color or fallback to light gray
-    if colors:
-        avg_color = tuple(sum(c[i] for c in colors) // len(colors) for i in range(3))
-    else:
-        avg_color = (240, 240, 240)  # Light gray fallback
-    
-    draw = ImageDraw.Draw(image)
-    draw.rectangle(position, fill=avg_color)
-
-
-def process_igazolas(input_date_str):
+def process_igazolas(from_date_str, to_date_str=None):
     """
     Process the igazolas image with the provided dates.
     
     Args:
-        input_date_str: Date string in format YYYY-MM-DD or YYYY.MM.DD
+        from_date_str: From date string in format YYYY-MM-DD or YYYY.MM.DD
+        to_date_str: To date string (optional). If not provided, uses from_date_str
     """
+    # If to_date not provided, use from_date for both
+    if to_date_str is None:
+        to_date_str = from_date_str
+    
     # Load the input image
     input_file = "igazolas.jpg"
     if not os.path.exists(input_file):
@@ -125,62 +79,73 @@ def process_igazolas(input_date_str):
     
     image = Image.open(input_file)
     
-    # Parse input date
+    # Parse from date
     try:
-        if '.' in input_date_str:
-            input_date = datetime.strptime(input_date_str, "%Y.%m.%d")
+        if '.' in from_date_str:
+            from_date = datetime.strptime(from_date_str, "%Y.%m.%d")
         else:
-            input_date = datetime.strptime(input_date_str, "%Y-%m-%d")
+            from_date = datetime.strptime(from_date_str, "%Y-%m-%d")
     except ValueError:
-        print(f"Error: Invalid date format '{input_date_str}'. Use YYYY-MM-DD or YYYY.MM.DD")
+        print(f"Error: Invalid from date format '{from_date_str}'. Use YYYY-MM-DD or YYYY.MM.DD")
+        sys.exit(1)
+    
+    # Parse to date
+    try:
+        if '.' in to_date_str:
+            to_date = datetime.strptime(to_date_str, "%Y.%m.%d")
+        else:
+            to_date = datetime.strptime(to_date_str, "%Y-%m-%d")
+    except ValueError:
+        print(f"Error: Invalid to date format '{to_date_str}'. Use YYYY-MM-DD or YYYY.MM.DD")
         sys.exit(1)
     
     # Format dates with short year format (25 instead of 2025)
-    input_date_formatted = input_date.strftime("%y.%m.%d")
+    from_date_formatted = from_date.strftime("%y.%m.%d")
+    to_date_formatted = to_date.strftime("%y.%m.%d")
     current_date = datetime.now()
     current_date_formatted = current_date.strftime("%y.%m.%d")
     
     # Define positions for date replacements
     positions = {
-        'input_date_1': (1347, 750, 1966, 864),
-        'input_date_2': (2386, 759, 2934, 862),
+        'from_date': (1347, 750, 1966, 864),
+        'to_date': (2386, 759, 2934, 862),
         'current_date': (921, 1385, 1685, 1505),
     }
-    
-    # Clear regions
-    for position in positions.values():
-        clear_region(image, position)
     
     # Draw dates
     draw = ImageDraw.Draw(image)
     
-    # Add input date to first two positions
-    generate_handwritten_text(draw, input_date_formatted, positions['input_date_1'], font_size=100)
-    generate_handwritten_text(draw, input_date_formatted, positions['input_date_2'], font_size=100)
+    # Add from date and to date to first two positions
+    generate_handwritten_text(draw, from_date_formatted, positions['from_date'], font_size=100)
+    generate_handwritten_text(draw, to_date_formatted, positions['to_date'], font_size=100)
     
     # Add current date to the third position
     generate_handwritten_text(draw, current_date_formatted, positions['current_date'], font_size=100)
     
-    # Generate output filename
-    output_filename = f"igazolas_{current_date.month}_{current_date.day}.jpg"
+    # Generate output filename using the to date
+    output_filename = f"igazolas_{to_date.month}_{to_date.day}.jpg"
     
     # Save the image
     image.save(output_filename, "JPEG", quality=95)
     print(f"Successfully created: {output_filename}")
-    print(f"Input date used: {input_date_formatted}")
-    print(f"Current date used: {current_date_formatted}")
+    print(f"From date: {from_date_formatted}")
+    print(f"To date: {to_date_formatted}")
+    print(f"Current date: {current_date_formatted}")
 
 
 def main():
     """Main entry point."""
-    if len(sys.argv) != 2:
-        print("Usage: python igazolo.py <date>")
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
+        print("Usage: python igazolo.py <from_date> [to_date]")
         print("Date format: YYYY-MM-DD or YYYY.MM.DD")
-        print("Example: python igazolo.py 2025-12-01")
+        print("Examples:")
+        print("  python igazolo.py 2025-12-01              # Uses same date for both")
+        print("  python igazolo.py 2025-12-01 2025-12-05  # Different from/to dates")
         sys.exit(1)
     
-    input_date = sys.argv[1]
-    process_igazolas(input_date)
+    from_date = sys.argv[1]
+    to_date = sys.argv[2] if len(sys.argv) == 3 else None
+    process_igazolas(from_date, to_date)
 
 
 if __name__ == "__main__":
